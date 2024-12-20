@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify
 import pandas as pd
+from fuzzywuzzy import process
 
 ratings = pd.read_csv('rating.csv')
 print(ratings.head())
@@ -10,36 +11,71 @@ def get_recommendations():
     user_top_anime = request.json  # Retrieve the JSON data from React
     print('User Top Anime:', user_top_anime)
 
-    user_anime = {int(anime['name']) for anime in user_top_anime}
-    print(user_anime)
-    matched_ratings = ratings[ratings['anime_id'].isin(user_anime)]
-    # Find users that have similar anime lists to user input
+    # Convert user anime names to IDs using the fuzzy matching function
+    user_anime_ids = set()
+    for anime in user_top_anime:
+        anime_id = get_anime_id_by_name_fuzzy(anime['name'])  # Fuzzy match to find anime_id
+        if anime_id:
+            user_anime_ids.add(anime_id)
+
+    print('Converted Anime IDs:', user_anime_ids)
+
+    # Match ratings for user's anime list
+    matched_ratings = ratings[ratings['anime_id'].isin(user_anime_ids)]
+
+    # Find users with similar anime lists
     user_match_counts = matched_ratings.groupby('user_id')['anime_id'].count()
-    #print(user_match_counts)
     similar_users = user_match_counts[user_match_counts >= 5]
-    #print(similar_users)
     similar_users_data = ratings[ratings['user_id'].isin(similar_users.index)]
-    #print("User Data: ")
-   # print(similar_users_data)
-    # Anime with ratings >= n
+
+    # Find anime rated highly by similar users
     anime_from_similar = similar_users_data[similar_users_data['rating'] >= 8]
-    #print(anime_from_similar)
-    # Anime excluded from the temp list created by user
-    recommended_anime = anime_from_similar[~anime_from_similar['anime_id'].isin(user_anime)]
-    
+
+    # Exclude anime already watched by the user
+    recommended_anime = anime_from_similar[~anime_from_similar['anime_id'].isin(user_anime_ids)]
+
+    # Aggregate recommendations
     recommended_summary = recommended_anime.groupby('anime_id').agg(
         count=('rating', 'size'),
         avg_rating=('rating', 'mean')
     ).sort_values(by=['count', 'avg_rating'], ascending=False)
-    top_recommendation = recommended_summary.head(20)
-    print(top_recommendation)
+    print(recommended_summary)
 
-    # Recommendation logic
-    recommendations = generate_recommendations(user_top_anime)
+    # Select top recommendations
+    top_recommendation = recommended_summary.head(20).reset_index()
+
+    print('Top Recommendations:', top_recommendation)
+
+    # Format the recommendations with anime names
+    recommendations = []
+    for _, row in top_recommendation.iterrows():
+        anime_id = row['anime_id']
+        anime_name = get_anime_name_by_id(anime_id)  # Fetch anime name by ID
+        recommendations.append({
+            'anime_id': anime_id,
+            'anime_name': anime_name,
+            'count': row['count'],
+            'avg_rating': row['avg_rating']
+        })
+    print(recommendations)
+
     return jsonify(recommendations)
 
-            
-                
+def get_anime_name_by_id(anime_id):
+    match = anime_data[anime_data['anime_id'] == anime_id]
+    if not match.empty:
+        return match.iloc[0]['name']
+    return 'Unkown Anime'
+          
+
+
+def get_anime_id_by_name_fuzzy(name):
+    choices = anime_data['name'].tolist()
+    match, score = process.extractOne(name, choices)
+    if score > 70:  # Set a threshold for match confidence
+        matched_row = anime_data[anime_data['name'] == match]
+        return int(matched_row.iloc[0]['anime_id'])
+    return None               
 def generate_recommendations(user_top_anime):
     # Placeholder for recommendation logic
     

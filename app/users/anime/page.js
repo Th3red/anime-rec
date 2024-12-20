@@ -5,11 +5,13 @@ import { useAnime } from '../../../context/AnimeContext';
 import DebugContext from '../../../context/debugComponent'; // Import your debug component
 
 import AnimeSuggestions from '../../components/AnimeSuggestions';
+import RecommendationsList from '../../components/RecommendationsList'; // Import the component
 
 
 const Home = () => {
   const { topAnime, setTopAnime } = useAnime();
   const [submitted, setSubmitted] = useState(false);
+  const [recommendations, setRecommendations] = useState([]); // State to store recommendations
 
   const handleInputChange = (index, value) => {
     const newTopAnime = [...topAnime];
@@ -38,6 +40,7 @@ const handleSubmit = async (e) => {
         const result = await response.json();
         console.log('Recommendations from API:', result);
 
+        setRecommendations(result);
         setSubmitted(true);
       } catch (error) {
         console.error('Error submitting data:', error);
@@ -86,6 +89,7 @@ const handleSubmit = async (e) => {
               </li>
             ))}
           </ul>
+          <RecommendationsList recommendations={recommendations} />
         </div>
       )}
       {/* Debugging Component */}

@@ -7,19 +7,29 @@ const AnimeSuggestions = ({ index, value, onChange }) => {
   useEffect(() => {
     setQuery(value); // Sync with parent value
   }, [value]);
-
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (!e.target.closest('.anime-suggestions')) {
+        setSuggestions([]);
+      }
+    };
+  
+    document.addEventListener('click', handleOutsideClick);
+    return () => document.removeEventListener('click', handleOutsideClick);
+  }, []);
   // Fetch suggestions from the backend API
   useEffect(() => {
     const fetchSuggestions = async () => {
       if (query.trim() === '') {
-        setSuggestions([]);
+        setSuggestions([]); // clear
         return;
       }
 
       try {
         const response = await fetch(`http://localhost:5000/api/anime-suggestions?query=${query}`);
-        const data = await response.json();
-        setSuggestions(data.slice(0, 10)); // Limit to 10 suggestions
+        let data = await response.json();
+        data = data.filter((anime) => anime.toLowerCase() !== query.toLowerCase());
+        setSuggestions(data.slice(0, 5)); // Limit to 10 suggestions
       } catch (error) {
         console.error('Error fetching suggestions:', error);
       }
@@ -27,7 +37,12 @@ const AnimeSuggestions = ({ index, value, onChange }) => {
 
     fetchSuggestions();
   }, [query]);
-
+  // Clear suggestions when a suggestion is clicked
+  const handleSuggestionClick = (suggestion) => {
+    setQuery(suggestion); // Update input with the clicked suggestion
+    setSuggestions([]); // Clear suggestions
+    onChange(suggestion); // Notify parent of the selected suggestion
+  };
   return (
     <div style={{ position: 'relative' }}>
       <input
@@ -41,23 +56,22 @@ const AnimeSuggestions = ({ index, value, onChange }) => {
         placeholder={`Anime ${index + 1}`}
         style={{ marginBottom: '10px', padding: '5px', width: '200px' }}
       />
+      <div className="anime-suggestions" style={{ position: 'relative' }}>
       {suggestions.length > 0 && (
         <ul style={{ border: '1px solid #ccc', position: 'absolute', zIndex: 1000, background: 'white', padding: '10px', width: '200px' }}>
           {suggestions.map((anime, i) => (
             <li
               key={i}
               style={{ cursor: 'pointer', padding: '5px', listStyle: 'none' }}
-              onClick={() => {
-                setQuery(anime); // Update input value
-                onChange(anime); // Notify parent of the selected suggestion
-                setSuggestions([]); // Clear suggestions
-              }}
+              onClick={() => handleSuggestionClick(anime)}
             >
               {anime}
             </li>
           ))}
         </ul>
+        
       )}
+      </div>
     </div>
   );
 };
